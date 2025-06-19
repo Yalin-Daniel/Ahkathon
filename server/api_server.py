@@ -376,6 +376,21 @@ def root():
         }
     }
 
+@app.delete("/delete_all_videos/")
+def delete_all_videos(db: Session = Depends(get_db)):
+    """
+    מחיקת כל רשומות הוידאו מהמסד
+    """
+    try:
+        deleted = db.query(VideoEntryDB).delete()
+        db.commit()
+        print(f"🗑️ נמחקו {deleted} רשומות מהטבלה videos")
+        return {"status": "success", "message": f"Deleted {deleted} video entries"}
+    except Exception as e:
+        db.rollback()
+        print(f"❌ שגיאה במחיקת כל הרשומות: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete all videos: {str(e)}")
+
 
 # הוספת import שחסר
 from sqlalchemy import func
