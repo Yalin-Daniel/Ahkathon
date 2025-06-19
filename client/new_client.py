@@ -17,6 +17,10 @@ from dataclasses import dataclass
 import pandas as pd
 from typing import List
 
+import os
+print("📂 Current working directory:", os.getcwd())
+
+
 # Try importing keras-retinanet
 try:
     from keras_retinanet.models import load_model
@@ -37,6 +41,8 @@ STATS_ENDPOINT = f"{BASE_URL}/get_video_stats/"
 
 # הגדרות וידאו
 video_path = "video/video1.mp4"
+#video_path = r"C:\Users\USER\Desktop\Ahkathon\video\video1.mp4"
+
 
 # הגדרות עיבוד
 SKIP_FRAMES = 7
@@ -239,7 +245,10 @@ def create_video_entry(video_path: str, excel_path: str, model=None):
     # טעינת מיקום מקובץ Excel
     try:
         df = pd.read_excel(excel_path)
-        df['timestamp'] = df['timestamp'].astype(str).str.replace('s', '', regex=False).astype(float)
+       # df['timestamp'] = df['timestamp'].astype(str).str.replace('s', '', regex=False).astype(float)
+        df['timestamp'] = df['timestamp'].astype(str).str.replace(',', '.', regex=False)
+        df['timestamp'] = pd.to_timedelta(df['timestamp']).dt.total_seconds()
+
         df['frame_number'] = (df['timestamp'] * fps).astype(int)
         location_map = {
             int(row['frame_number']): {

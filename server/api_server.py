@@ -52,7 +52,8 @@ class VideoEntry(BaseModel):
     pedestrian_count: int
     time: str
     video_path: str
-    height: int
+    #height: int
+    height: float
     longitude: float
     latitude: float
 
