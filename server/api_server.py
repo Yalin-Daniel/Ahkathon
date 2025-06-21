@@ -20,7 +20,6 @@ Base = declarative_base()
 # Database Models
 class VideoEntryDB(Base):
     __tablename__ = "videos"
-
     id = Column(Integer, primary_key=True, index=True)
     frame_number = Column(Integer, index=True)
     timestamp = Column(Float, index=True)
