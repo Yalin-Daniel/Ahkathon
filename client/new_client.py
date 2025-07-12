@@ -3,7 +3,7 @@
 
 """
 Pedestrian detection in drone videos - Fixed Version
-עם חיבור משופר למפה הדינמית - ללא שגיאות
+Improved connection to the dynamic map - no errors
 """
 
 import cv2
@@ -18,7 +18,7 @@ import pandas as pd
 from typing import List
 
 import os
-print("📂 Current working directory:", os.getcwd())
+print("Current working directory:", os.getcwd())
 
 
 # Try importing keras-retinanet
@@ -28,68 +28,68 @@ try:
     from keras_retinanet.utils.image import preprocess_image, resize_image
 
     RETINANET_AVAILABLE = True
-    print("✅ keras-retinanet is available")
+    print("keras-retinanet is available")
 except ImportError as e:
-    print(f"⚠️  keras-retinanet not available: {e}")
+    print(f"keras-retinanet not available: {e}")
     RETINANET_AVAILABLE = False
 
-# הגדרות API
+# API settings
 BASE_URL = "http://localhost:8080"
 VIDEO_ENDPOINT = f"{BASE_URL}/insert_video/"
 LOCATION_UPDATE_ENDPOINT = f"{BASE_URL}/update_location/"
 STATS_ENDPOINT = f"{BASE_URL}/get_video_stats/"
 
-# הגדרות וידאו
+# Video settings
 video_path = "video/video1.mp4"
 #video_path = r"C:\Users\USER\Desktop\Ahkathon\video\video1.mp4"
 
 
-# הגדרות עיבוד
+# Processing settings
 SKIP_FRAMES = 7
 CONFIDENCE_THRESHOLD = 0.4
 
 
 def check_server_connection():
-    """בדיקת חיבור לשרת"""
+    """Checks connection to the server."""
     try:
         response = requests.get(f"{BASE_URL}/", timeout=5)
         if response.status_code == 200:
-            print("✅ חיבור לשרת הצליח")
+            print("Server connection successful")
             return True
         else:
-            print(f"⚠️ שרת מגיב אבל עם שגיאה: {response.status_code}")
+            print(f"Server responds but with an error: {response.status_code}")
             return False
     except requests.exceptions.ConnectionError:
-        print(f"❌ לא ניתן להתחבר לשרת ב-{BASE_URL}")
-        print("💡 ודא שהשרת רץ על localhost:8080")
+        print(f"Could not connect to the server at {BASE_URL}")
+        print("Ensure the server is running on localhost:8080")
         return False
     except requests.exceptions.Timeout:
-        print("⏱️ זמן החיבור לשרת פג")
+        print("Server connection timed out")
         return False
 
 
 def get_server_stats():
-    """קבלת סטטיסטיקות מהשרת"""
+    """Retrieves statistics from the server."""
     try:
         response = requests.get(STATS_ENDPOINT, timeout=10)
         if response.status_code == 200:
             stats = response.json()
-            print(f"📊 סטטיסטיקות שרת:")
-            print(f"   📝 סה״כ רשומות: {stats.get('total_entries', 0)}")
-            print(f"   👥 סה״כ אנשים זוהו: {stats.get('total_people_detected', 0)}")
-            print(f"   🎬 וידאוים ייחודיים: {stats.get('unique_videos', 0)}")
-            print(f"   📍 רשומות עם מיקום: {stats.get('entries_with_location', 0)}")
+            print(f"Server Statistics:")
+            print(f"   Total entries: {stats.get('total_entries', 0)}")
+            print(f"   Total people detected: {stats.get('total_people_detected', 0)}")
+            print(f"   Unique videos: {stats.get('unique_videos', 0)}")
+            print(f"   Entries with location: {stats.get('entries_with_location', 0)}")
             return stats
         else:
-            print(f"❌ שגיאה בקבלת סטטיסטיקות: {response.status_code}")
+            print(f"Error getting statistics: {response.status_code}")
             return None
     except Exception as e:
-        print(f"❌ שגיאה בחיבור לסטטיסטיקות: {e}")
+        print(f"Error connecting to statistics endpoint: {e}")
         return None
 
 
 def create_video_entry1(data):
-    """יצירת רשומת וידאו חדשה עם שיפורים"""
+    """Creates a new video entry with improvements."""
     max_retries = 3
     retry_delay = 1
 
@@ -98,46 +98,46 @@ def create_video_entry1(data):
             response = requests.post(VIDEO_ENDPOINT, json=data, timeout=10)
             if response.status_code == 200:
                 result = response.json()
-                print(f"✅ Frame {data['frame_number']}: נוסף בהצלחה (ID: {result.get('id')})")
+                print(f"Frame {data['frame_number']}: Added successfully (ID: {result.get('id')})")
                 return True
             else:
-                print(f"❌ Frame {data['frame_number']}: שגיאה {response.status_code}")
+                print(f"Frame {data['frame_number']}: Error {response.status_code}")
                 if attempt < max_retries - 1:
-                    print(f"🔄 ניסיון חוזר {attempt + 2}/{max_retries}...")
+                    print(f"Retrying {attempt + 2}/{max_retries}...")
                     time.sleep(retry_delay)
                     retry_delay *= 2
         except requests.exceptions.ConnectionError:
-            print(f"❌ Frame {data['frame_number']}: שגיאת חיבור")
+            print(f"Frame {data['frame_number']}: Connection error")
             if attempt < max_retries - 1:
                 time.sleep(retry_delay)
                 retry_delay *= 2
         except requests.exceptions.Timeout:
-            print(f"⏱️ Frame {data['frame_number']}: זמן הבקשה פג")
+            print(f"Frame {data['frame_number']}: Request timed out")
             if attempt < max_retries - 1:
                 time.sleep(retry_delay)
         except Exception as e:
-            print(f"❌ Frame {data['frame_number']}: שגיאת בקשה - {e}")
+            print(f"Frame {data['frame_number']}: Request error - {e}")
             break
 
-    print(f"💥 Frame {data['frame_number']}: נכשל לאחר {max_retries} ניסיונות")
+    print(f"Frame {data['frame_number']}: Failed after {max_retries} attempts")
     return False
 
 def create_video_entry2(video_path: str, excel_path: str, model=None):
     """
-    פונקציה אחת שמבצעת את כל התהליך:
-    טעינת וידאו + נתוני מיקום + זיהוי אנשים + שליחה עם מיקום בפעם אחת לשרת
+    One function that performs the entire process:
+    Load video + location data + pedestrian detection + send with location to server at once.
     """
-    # פתיחת וידאו
+    # Open video
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
-        print("❌ לא ניתן לפתוח את הוידאו")
+        print("Could not open video")
         return
 
     fps = cap.get(cv2.CAP_PROP_FPS)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    print(f"📽️ FPS: {fps}, Total frames: {total_frames}")
+    print(f"FPS: {fps}, Total frames: {total_frames}")
 
-    # טען מיקום מ־Excel למילון
+    # Load location from Excel to dictionary
     try:
         df = pd.read_excel(excel_path)
         df['timestamp'] = df['timestamp'].astype(str).str.replace('s', '', regex=False).astype(float)
@@ -150,12 +150,12 @@ def create_video_entry2(video_path: str, excel_path: str, model=None):
             }
             for _, row in df.iterrows()
         }
-        print(f"✅ נטענו {len(location_map)} פריימים עם מיקום")
+        print(f"Loaded {len(location_map)} frames with location")
     except Exception as e:
-        print(f"❌ שגיאה בטעינת Excel: {e}")
+        print(f"Error loading Excel: {e}")
         location_map = {}
 
-    # הגלאי (למשל HOG)
+    # Default detector (e.g., HOG)
     if model is None:
         hog = cv2.HOGDescriptor()
         hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
@@ -170,24 +170,24 @@ def create_video_entry2(video_path: str, excel_path: str, model=None):
         if frame_count % 7 != 0:
             continue
 
-        # זיהוי אנשים
+        # Pedestrian detection
         if model is None:
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             rects, _ = hog.detectMultiScale(gray, winStride=(4, 4), padding=(8, 8), scale=1.05)
             people_count = len(rects)
         else:
-            # RetinaNet (אם קיים)
+            # RetinaNet (if available)
             image = preprocess_image(frame.copy())
             image, scale = resize_image(image)
             boxes, scores, labels = model.predict_on_batch(np.expand_dims(image, axis=0))
             boxes /= scale
             people_count = sum(1 for score, label in zip(scores[0], labels[0]) if score > 0.4 and label == 0)
 
-        # זמן ותזמון
+        # Time and timestamp
         timestamp_seconds = round(frame_count / fps, 2) if fps > 0 else frame_count
         now_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-        # מיקום מה-Excel
+        # Location from Excel
         location = location_map.get(frame_count, {
             "height": 0,
             "longitude": 0.0,
@@ -208,22 +208,22 @@ def create_video_entry2(video_path: str, excel_path: str, model=None):
         try:
             res = requests.post(f"{BASE_URL}/insert_video/", json=payload)
             if res.status_code == 200:
-                print(f"✅ Frame {frame_count}: נשלח עם {people_count} אנשים ומיקום ({location['latitude']}, {location['longitude']})")
+                print(f"Frame {frame_count}: Sent with {people_count} people and location ({location['latitude']}, {location['longitude']})")
             else:
-                print(f"❌ שגיאה בשליחה לשרת: {res.status_code} - {res.text}")
+                print(f"Error sending to server: {res.status_code} - {res.text}")
         except Exception as e:
-            print(f"❌ שגיאה בבקשה: {e}")
+            print(f"Request error: {e}")
 
     cap.release()
     cv2.destroyAllWindows()
 
 def create_video_entry(video_path: str, excel_path: str, model=None):
     """
-    טעינת וידאו + נתוני מיקום + זיהוי אנשים + שליחה עם מיקום הקרוב ביותר לכל פריים מדוגם
+    Load video + location data + pedestrian detection + send with the closest location for each sampled frame.
     """
 
     def find_closest_location(frame_number, location_map, max_distance=15):
-        """מאתר את מיקום ה-GPS הקרוב ביותר לפריים"""
+        """Finds the closest GPS location to the frame."""
         if not location_map:
             return {'height': 0, 'longitude': 0.0, 'latitude': 0.0}
 
@@ -232,17 +232,17 @@ def create_video_entry(video_path: str, excel_path: str, model=None):
             return {'height': 0, 'longitude': 0.0, 'latitude': 0.0}
         return location_map[closest_frame]
 
-    # פתיחת וידאו
+    # Open video
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
-        print("❌ לא ניתן לפתוח את הוידאו")
+        print("Could not open video")
         return
 
     fps = cap.get(cv2.CAP_PROP_FPS)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    print(f"📽️ FPS: {fps}, Total frames: {total_frames}")
+    print(f"FPS: {fps}, Total frames: {total_frames}")
 
-    # טעינת מיקום מקובץ Excel
+    # Load location from Excel file
     try:
         df = pd.read_excel(excel_path)
        # df['timestamp'] = df['timestamp'].astype(str).str.replace('s', '', regex=False).astype(float)
@@ -258,12 +258,12 @@ def create_video_entry(video_path: str, excel_path: str, model=None):
             }
             for _, row in df.iterrows()
         }
-        print(f"✅ נטענו {len(location_map)} פריימים עם מיקום")
+        print(f"Loaded {len(location_map)} frames with location")
     except Exception as e:
-        print(f"❌ שגיאה בטעינת Excel: {e}")
+        print(f"Error loading Excel: {e}")
         location_map = {}
 
-    # גלאי ברירת מחדל אם אין מודל RetinaNet
+    # Default detector if RetinaNet model is not available
     if model is None:
         hog = cv2.HOGDescriptor()
         hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
@@ -276,9 +276,9 @@ def create_video_entry(video_path: str, excel_path: str, model=None):
 
         frame_count += 1
         if frame_count % SKIP_FRAMES != 0:
-            continue  # רק כל N פריימים
+            continue  # Only every N frames
 
-        # זיהוי אנשים
+        # Pedestrian detection
         if model is None:
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             rects, _ = hog.detectMultiScale(gray, winStride=(4, 4), padding=(8, 8), scale=1.05)
@@ -290,11 +290,11 @@ def create_video_entry(video_path: str, excel_path: str, model=None):
             boxes /= scale
             people_count = sum(1 for score, label in zip(scores[0], labels[0]) if score > 0.4 and label == 0)
 
-        # זמן
+        # Time
         timestamp_seconds = round(frame_count / fps, 2) if fps > 0 else frame_count
         now_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-        # קבלת מיקום קרוב
+        # Get closest location
         location = find_closest_location(frame_count, location_map)
 
         payload = {
@@ -311,18 +311,18 @@ def create_video_entry(video_path: str, excel_path: str, model=None):
         try:
             res = requests.post(f"{BASE_URL}/insert_video/", json=payload)
             if res.status_code == 200:
-                print(f"✅ Frame {frame_count}: נשלח עם {people_count} אנשים ומיקום ({location['latitude']}, {location['longitude']})")
+                print(f"Frame {frame_count}: Sent with {people_count} people and location ({location['latitude']}, {location['longitude']})")
             else:
-                print(f"❌ שגיאה בשליחה לשרת: {res.status_code} - {res.text}")
+                print(f"Error sending to server: {res.status_code} - {res.text}")
         except Exception as e:
-            print(f"❌ שגיאה בבקשה: {e}")
+            print(f"Request error: {e}")
 
     cap.release()
     cv2.destroyAllWindows()
 
 
 def find_available_model():
-    """חיפוש מודל זמין במערכת"""
+    """Searches for an available model in the system."""
     possible_paths = [
         "snapshots/resnet50_csv_08_inference.h5",
         "models/resnet50_csv_08_inference.h5",
@@ -331,37 +331,37 @@ def find_available_model():
         "snapshots/resnet50_coco_best_v2.1.0.h5",
     ]
 
-    print("🔍 מחפש מודלים זמינים...")
+    print("Searching for available models...")
     for path in possible_paths:
         if Path(path).exists():
-            print(f"✅ נמצא מודל: {path}")
+            print(f"Found model: {path}")
             return path
 
-    # חיפוש כל קבצי h5
+    # Search for all h5 files
     h5_files = list(Path(".").rglob("*.h5"))
     if h5_files:
-        print("📁 קבצי h5 שנמצאו:")
+        print("Found h5 files:")
         for i, file in enumerate(h5_files):
             size_mb = file.stat().st_size / (1024 * 1024)
             print(f"  {i + 1}. {file} ({size_mb:.1f} MB)")
             if size_mb > 10:
-                print(f"🎯 נבחר: {file}")
+                print(f"Selected: {file}")
                 return str(file)
 
-    print("❌ לא נמצא מודל מתאים")
+    print("No suitable model found")
     return None
 
 
 def create_simple_detector():
-    """יצירת גלאי פשוט עם HOG"""
-    print("🔧 יוצר גלאי פשוט...")
+    """Creates a simple HOG detector."""
+    print("Creating a simple detector...")
     hog = cv2.HOGDescriptor()
     hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
     return hog
 
 
 def detect_with_hog(frame, hog_detector):
-    """זיהוי אנשים עם HOG עם תצוגה חזותית משופרת"""
+    """Pedestrian detection with HOG with improved visual display."""
     try:
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         (rects, weights) = hog_detector.detectMultiScale(
@@ -370,23 +370,23 @@ def detect_with_hog(frame, hog_detector):
 
         display_frame = frame.copy()
 
-        # ציור מלבנים סביב אנשים שזוהו
+        # Draw rectangles around detected people
         for i, (x, y, w, h) in enumerate(rects):
             confidence = weights[i] if i < len(weights) else 0.8
 
-            # צבע לפי רמת ביטחון
+            # Color by confidence level
             if confidence > 0.8:
-                color = (0, 255, 0)  # ירוק
+                color = (0, 255, 0)  # Green
             elif confidence > 0.5:
-                color = (0, 255, 255)  # צהוב
+                color = (0, 255, 255)  # Yellow
             else:
-                color = (0, 165, 255)  # כתום
+                color = (0, 165, 255)  # Orange
 
             cv2.rectangle(display_frame, (x, y), (x + w, y + h), color, 3)
             cv2.putText(display_frame, f"Person {confidence:.2f}",
                         (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
-        # הצגת מידע נוסף על המסך
+        # Display additional information on the screen
         info_text = [
             f"People Detected: {len(rects)}",
             f"Time: {datetime.now().strftime('%H:%M:%S')}",
@@ -401,7 +401,7 @@ def detect_with_hog(frame, hog_detector):
         cv2.imshow('Drone Video - Live Detection', display_frame)
         cv2.waitKey(1)
 
-        # יצירת רשימת אנשים שזוהו
+        # Create a list of detected people
         people = []
         for i, (x, y, w, h) in enumerate(rects):
             confidence = weights[i] if i < len(weights) else 0.8
@@ -413,14 +413,14 @@ def detect_with_hog(frame, hog_detector):
         return people
 
     except Exception as e:
-        print(f"❌ שגיאה בזיהוי: {e}")
+        print(f"Detection error: {e}")
         cv2.imshow('Drone Video - Live Detection', frame)
         cv2.waitKey(1)
         return []
 
 
 def detect_with_retinanet(frame, model):
-    """זיהוי עם RetinaNet (אם זמין)"""
+    """Detection with RetinaNet (if available)."""
     try:
         image = preprocess_image(frame.copy())
         image, scale = resize_image(image)
@@ -436,7 +436,7 @@ def detect_with_retinanet(frame, model):
         return people
 
     except Exception as e:
-        print(f"❌ שגיאת RetinaNet: {e}")
+        print(f"RetinaNet error: {e}")
         return []
 
 
@@ -449,12 +449,12 @@ class Frame:
 
 
 def load_frames_from_excel(file_path: str) -> List[Frame]:
-    """טעינת נתוני פריימים מקובץ Excel עם טיפול בשמות עמודות"""
+    """Loads frame data from an Excel file with column name handling."""
     try:
-        print(f"📖 טוען נתוני מיקום מ-{file_path}...")
+        print(f"Loading location data from {file_path}...")
         df = pd.read_excel(file_path)
 
-        # תיקון אוטומטי של שגיאות כתיב נפוצות
+        # Automatic correction of common spelling mistakes
         column_aliases = {
             'longitute': 'longitude',
             'Longitute': 'longitude',
@@ -467,11 +467,11 @@ def load_frames_from_excel(file_path: str) -> List[Frame]:
         missing_columns = [col for col in required_columns if col not in df.columns]
 
         if missing_columns:
-            print(f"❌ עמודות חסרות: {missing_columns}")
-            print(f"📋 עמודות זמינות: {list(df.columns)}")
+            print(f"Missing columns: {missing_columns}")
+            print(f"Available columns: {list(df.columns)}")
             return []
 
-        print(f"✅ נמצאו {len(df)} שורות")
+        print(f"Found {len(df)} rows")
 
         frames = []
         for index, row in df.iterrows():
@@ -479,49 +479,49 @@ def load_frames_from_excel(file_path: str) -> List[Frame]:
                 timestamp_str = str(row['timestamp']).replace('s', '')
                 timestamp = float(timestamp_str)
                 frame = Frame(
-                    number=int(timestamp * 30),  # אם FPS = 30
+                    number=int(timestamp * 30),  # If FPS = 30
                     height=float(row['altitude']),
                     longitude=float(row['longitude']),
                     latitude=float(row['latitude'])
                 )
                 frames.append(frame)
             except (ValueError, TypeError) as e:
-                print(f"⚠️ שגיאה בשורה {index + 1}: {e}")
+                print(f"Error in row {index + 1}: {e}")
                 continue
 
-        print(f"✅ טעינה הושלמה: {len(frames)} פריימים תקינים")
+        print(f"Loading completed: {len(frames)} valid frames")
         return frames
 
     except FileNotFoundError:
-        print(f"❌ קובץ Excel לא נמצא: {file_path}")
+        print(f"Excel file not found: {file_path}")
         return []
     except Exception as e:
-        print(f"❌ שגיאה בטעינת Excel: {e}")
+        print(f"Error loading Excel: {e}")
         return []
 
 
 def process_video_with_detection(video_path, output_json_path="detection_results.json"):
-    """עיבוד וידאו עם זיהוי הולכי רגל - גרסה משופרת עם סנכרון מיקום"""
-    print(f"🎬 מעבד וידאו: {video_path}")
+    """Video processing with pedestrian detection - improved version with location synchronization."""
+    print(f"Processing video: {video_path}")
 
     if not Path(video_path).exists():
-        print(f"❌ וידאו לא נמצא: {video_path}")
+        print(f"Video not found: {video_path}")
         return False
 
-    # בדיקת חיבור לשרת
+    # Check server connection
     if not check_server_connection():
-        print("💡 ניתן להמשיך ללא שרת, אבל הנתונים לא יישמרו")
+        print("You can continue without a server, but data will not be saved")
         return False
     else:
         save_to_server = True
-        print("📊 מציג סטטיסטיקות שרת נוכחיות:")
+        print("Displaying current server statistics:")
         get_server_stats()
 
-    # טעינת נתוני מיקום מקובץ Excel אם קיים
+    # Load location data from Excel file if it exists
     location_data = {}
     excel_file = "frames.xlsx"
     if Path(excel_file).exists():
-        print(f"📍 טוען נתוני מיקום מ-{excel_file}...")
+        print(f"Loading location data from {excel_file}...")
         try:
             frames = load_frames_from_excel(excel_file)
             for frame in frames:
@@ -530,55 +530,55 @@ def process_video_with_detection(video_path, output_json_path="detection_results
                     'longitude': frame.longitude,
                     'latitude': frame.latitude
                 }
-            print(f"✅ נטענו נתוני מיקום עבור {len(location_data)} פריימים")
+            print(f"Loaded location data for {len(location_data)} frames")
         except Exception as e:
-            print(f"⚠️ שגיאה בטעינת נתוני מיקום: {e}")
+            print(f"Error loading location data: {e}")
             location_data = {}
     else:
-        print(f"⚠️ קובץ {excel_file} לא נמצא - מיקומים יהיו 0")
+        print(f"File {excel_file} not found - locations will be 0")
 
-    # טעינת מודל
+    # Load model
     model = None
     if RETINANET_AVAILABLE:
         model_path = find_available_model()
         if model_path:
             try:
-                print(f"📥 טוען מודל RetinaNet: {model_path}")
+                print(f"Loading RetinaNet model: {model_path}")
                 model = load_model(model_path, backbone_name='resnet50')
-                print("✅ מודל RetinaNet נטען בהצלחה")
+                print("RetinaNet model loaded successfully")
             except Exception as e:
-                print(f"❌ שגיאה בטעינת RetinaNet: {e}")
+                print(f"Error loading RetinaNet: {e}")
                 model = None
 
     if model is None:
-        print("🔄 עובר לזיהוי HOG...")
+        print("Switching to HOG detection...")
         hog_detector = create_simple_detector()
         detection_method = "HOG"
     else:
         hog_detector = None
         detection_method = "RetinaNet"
 
-    # פתיחת וידאו
+    # Open video
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
-        print("❌ לא ניתן לפתוח את הוידאו")
+        print("Could not open video")
         return False
 
-    # מידע על הוידאו
+    # Video information
     fps = cap.get(cv2.CAP_PROP_FPS)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     duration = total_frames / fps if fps > 0 else 0
 
-    print(f"📊 מידע על הוידאו:")
-    print(f"   🎯 רזולוציה: {width}x{height}")
-    print(f"   ⏱️ FPS: {fps:.2f}")
-    print(f"   🎞️ סה״כ פריימים: {total_frames}")
-    print(f"   ⏰ משך: {duration:.1f} שניות")
-    print(f"   🧠 שיטת זיהוי: {detection_method}")
+    print(f"Video Information:")
+    print(f"   Resolution: {width}x{height}")
+    print(f"   FPS: {fps:.2f}")
+    print(f"   Total frames: {total_frames}")
+    print(f"   Duration: {duration:.1f} seconds")
+    print(f"   Detection method: {detection_method}")
 
-    # משתנים לעיבוד
+    # Processing variables
     results = []
     frame_count = 0
     processed_count = 0
@@ -588,7 +588,7 @@ def process_video_with_detection(video_path, output_json_path="detection_results
     failed_uploads = 0
     frames_with_location = 0
 
-    print("🚀 זיהוי החל... לחץ ESC לעצירה")
+    print("Detection started... Press ESC to stop")
 
     try:
         while True:
@@ -598,32 +598,32 @@ def process_video_with_detection(video_path, output_json_path="detection_results
 
             frame_count += 1
 
-            # בדיקת ESC לעצירה
+            # Check ESC to stop
             key = cv2.waitKey(1) & 0xFF
             if key == 27:  # ESC
-                print("\n⏹️ עצירה על פי בקשת המשתמש")
+                print("\nStopping at user request")
                 break
 
-            # דילוג על פריימים
+            # Skip frames
             if frame_count % SKIP_FRAMES != 0:
                 continue
 
             processed_count += 1
 
-            # זיהוי אנשים
+            # Pedestrian detection
             people = detect_with_retinanet(frame, model) if model else detect_with_hog(frame, hog_detector)
             people_count = len(people)
             total_people_detected += people_count
 
-            # קבלת נתוני מיקום אם קיימים
+            # Get location data if available
             location = location_data.get(frame_count, {'height': 0, 'longitude': 0.0, 'latitude': 0.0})
 
-            # בדיקה אם יש מיקום תקין
+            # Check if there is valid location
             has_location = location['latitude'] != 0.0 or location['longitude'] != 0.0
             if has_location:
                 frames_with_location += 1
 
-            # יצירת נתוני JSON לפריים
+            # Create JSON data for the frame
             timestamp_seconds = round(frame_count / fps, 2) if fps > 0 else frame_count
             frame_data = {
                 "frame_number": frame_count,
@@ -638,53 +638,53 @@ def process_video_with_detection(video_path, output_json_path="detection_results
 
             results.append(frame_data)
 
-            # שליחה לשרת
+            # Send to server
             if save_to_server:
                 success = create_video_entry(frame_data)
                 if not success:
                     failed_uploads += 1
 
-            # הצגת התקדמות
+            # Display progress
             current_time = time.time()
             if current_time - last_progress_time >= 2.0:
                 progress = (frame_count / total_frames) * 100 if total_frames > 0 else 0
                 elapsed = current_time - start_time
                 fps_processing = processed_count / elapsed if elapsed > 0 else 0
 
-                location_info = f"📍 {frames_with_location}/{processed_count} עם מיקום" if frames_with_location > 0 else "📍 ללא מיקום"
+                location_info = f"{frames_with_location}/{processed_count} with location" if frames_with_location > 0 else "No location"
 
-                print(f"📈 Frame {frame_count:,}/{total_frames:,} ({progress:.1f}%) | "
-                      f"זוהו {people_count} אנשים | סה״כ: {total_people_detected} | "
-                      f"מהירות: {fps_processing:.1f} FPS | {location_info}")
+                print(f"Frame {frame_count:,}/{total_frames:,} ({progress:.1f}%) | "
+                      f"Detected {people_count} people | Total: {total_people_detected} | "
+                      f"Speed: {fps_processing:.1f} FPS | {location_info}")
                 last_progress_time = current_time
 
     except KeyboardInterrupt:
-        print("\n⏹️ עצירה על פי בקשת המשתמש (Ctrl+C)")
+        print("\nStopping at user request (Ctrl+C)")
     except Exception as e:
-        print(f"\n❌ שגיאה בעיבוד: {e}")
+        print(f"\nError processing: {e}")
     finally:
         cap.release()
         cv2.destroyAllWindows()
 
-    # סיכום עיבוד
+    # Processing summary
     processing_time = time.time() - start_time
     max_people = max((frame['pedestrian_count'] for frame in results), default=0)
     avg_people = total_people_detected / len(results) if results else 0
 
-    print(f"\n🎉 עיבוד הושלם!")
-    print(f"⏱️ זמן עיבוד: {processing_time:.1f} שניות")
-    print(f"👥 סה״כ זיהויים: {total_people_detected}")
-    print(f"🏆 מקסימום בפריים: {max_people}")
-    print(f"📈 ממוצע לפריים: {avg_people:.2f}")
-    print(f"🎞️ פריימים עובדו: {len(results)}")
+    print(f"\nProcessing completed!")
+    print(f"Processing time: {processing_time:.1f} seconds")
+    print(f"Total detections: {total_people_detected}")
+    print(f"Maximum in frame: {max_people}")
+    print(f"Average per frame: {avg_people:.2f}")
+    print(f"Processed frames: {len(results)}")
     print(
-        f"📍 פריימים עם מיקום: {frames_with_location}/{len(results)} ({frames_with_location / len(results) * 100:.1f}%)")
+        f"Frames with location: {frames_with_location}/{len(results)} ({frames_with_location / len(results) * 100:.1f}%)")
 
     if save_to_server:
         success_rate = ((len(results) - failed_uploads) / len(results) * 100) if results else 0
-        print(f"📤 הועלו לשרת: {len(results) - failed_uploads}/{len(results)} ({success_rate:.1f}%)")
+        print(f"Uploaded to server: {len(results) - failed_uploads}/{len(results)} ({success_rate:.1f}%)")
 
-    # שמירת JSON
+    # Save JSON
     try:
         final_result = {
             "video_info": {
@@ -709,92 +709,92 @@ def process_video_with_detection(video_path, output_json_path="detection_results
 
         with open(output_json_path, 'w', encoding='utf-8') as f:
             json.dump(final_result, f, indent=2, ensure_ascii=False)
-        print(f"📁 JSON נשמר ב: {output_json_path}")
+        print(f"JSON saved to: {output_json_path}")
     except Exception as e:
-        print(f"❌ שגיאה בשמירת JSON: {e}")
+        print(f"Error saving JSON: {e}")
 
     return True
 
 
 def main():
-    """פונקציה ראשית משופרת עם סנכרון מיקום אוטומטי"""
-    print("🚁 זיהוי הולכי רגל בסרטוני רחפן - גרסה משופרת")
+    """Main function improved with automatic location synchronization."""
+    print("Drone Pedestrian Detection - Improved Version")
     print("=" * 60)
 
     global video_path
     output_json = "pedestrian_detection_results.json"
 
-    # בדיקת קיום וידאו
+    # Check video existence
     if not Path(video_path).exists():
-        print(f"❌ וידאו לא נמצא: {video_path}")
+        print(f"Video not found: {video_path}")
 
-        # חיפוש וידאו אלטרנטיבי
+        # Search for alternative videos
         video_extensions = ['.mp4', '.avi', '.mov', '.mkv', '.m4v']
         found_videos = []
         for ext in video_extensions:
             found_videos.extend(list(Path(".").rglob(f"*{ext}")))
 
         if found_videos:
-            print(f"\n📁 נמצאו {len(found_videos)} קבצי וידאו:")
+            print(f"\nFound {len(found_videos)} video files:")
             for i, video in enumerate(found_videos[:10]):
                 size_mb = video.stat().st_size / (1024 * 1024)
                 print(f"  {i + 1}. {video} ({size_mb:.1f} MB)")
 
             try:
-                choice = input(f"\n🔢 בחר מספר וידאו (1-{min(len(found_videos), 10)}) או Enter ליציאה: ").strip()
+                choice = input(f"\nSelect video number (1-{min(len(found_videos), 10)}) or Enter to exit: ").strip()
                 if choice.isdigit() and 1 <= int(choice) <= min(len(found_videos), 10):
                     video_path = str(found_videos[int(choice) - 1])
-                    print(f"✅ נבחר: {video_path}")
+                    print(f"Selected: {video_path}")
                 else:
-                    print("👋 יוצא...")
+                    print("Exiting...")
                     return
             except KeyboardInterrupt:
-                print("\n👋 יוצא...")
+                print("\nExiting...")
                 return
         else:
-            print("📂 לא נמצאו קבצי וידאו")
+            print("No video files found")
             return
 
-    print(f"\n🎬 עובד עם וידאו: {video_path}")
+    print(f"\nWorking with video: {video_path}")
 
-    # בדיקת קובץ Excel
+    # Check Excel file
     excel_file = "frames.xlsx"
     import os
-    print(f"📁 מחפש את frames.xlsx בתוך: {os.getcwd()}")
+    print(f"Looking for frames.xlsx in: {os.getcwd()}")
 
     excel_found = Path(excel_file).exists()
 
     if excel_found:
-        print(f"✅ נמצא קובץ מיקום: {excel_file}")
-        print("📍 המיקומים יסונכרנו אוטומטית במהלך העיבוד")
+        print(f"Location file found: {excel_file}")
+        print("Locations will be automatically synchronized during processing")
     else:
-        print(f"⚠️ קובץ {excel_file} לא נמצא")
+        print(f"File {excel_file} not found")
 
-        # חיפוש קבצי Excel אלטרנטיביים
+        # Search for alternative Excel files
         excel_files = list(Path(".").glob("*.xlsx")) + list(Path(".").glob("*.xls"))
         if excel_files:
-            print(f"\n📁 נמצאו קבצי Excel אלטרנטיביים:")
+            print(f"\nFound alternative Excel files:")
             for i, file in enumerate(excel_files):
                 print(f"  {i + 1}. {file}")
 
             try:
-                choice = input(f"\nבחר מספר קובץ (1-{len(excel_files)}) או Enter להמשיך ללא מיקום: ").strip()
+                choice = input(f"\nSelect file number (1-{len(excel_files)}) or Enter to continue without location: ").strip()
                 if choice.isdigit() and 1 <= int(choice) <= len(excel_files):
                     excel_file = str(excel_files[int(choice) - 1])
-                    print(f"✅ נבחר: {excel_file}")
+                    print(f"Selected: {excel_file}")
                     excel_found = True
                 else:
-                    print("⏭️ ממשיך ללא נתוני מיקום")
+                    print("Continuing without location data")
                     excel_found = False
             except KeyboardInterrupt:
-                print("\n⏭️ ממשיך ללא נתוני מיקום")
+                print("\nContinuing without location data")
                 excel_found = False
         else:
-            print("📂 לא נמצאו קבצי Excel - ממשיך ללא נתוני מיקום")
+            print("No Excel files found - continuing without location data")
 
-    # עיבוד וידאו עם סנכרון מיקום אוטומטי
+    # Video processing with automatic location synchronization
     print("\n" + "=" * 60)
-    print("🔍 מתחיל עיבוד וידאו עם סנכרון מיקום אוטומטי")
+    print("Starting video processing with automatic location synchronization")
     print("=" * 60)
 
    # success = process_video_with_detection(video_path, output_json)
@@ -802,48 +802,48 @@ def main():
     success = create_video_entry(video_path, os.path.abspath("frames.xlsx"))
 
     if not success:
-        print("\n❌ עיבוד הוידאו נכשל.")
+        print("\nVideo processing failed.")
         return
 
-    print("\n✅ עיבוד הוידאו הושלם בהצלחה!")
+    print("\nVideo processing completed successfully!")
 
-    # הצגת הוראות סיום
+    # Display final instructions
     print(f"\n" + "=" * 60)
-    print("🎊 עיבוד הושלם!")
+    print("Processing completed!")
     print("=" * 60)
-    print("📋 מה לעשות עכשיו:")
-    print("1. 🗺️ הפעל את המפה הדינמית:")
+    print("What to do next:")
+    print("1. Run the dynamic map:")
     print("   python dynamic_map.py")
-    print("2. 🌐 גש לכתובת: http://127.0.0.1:8050")
-    print("3. 📊 המפה תתעדכן אוטומטית כל 5 שניות")
+    print("2. Go to: http://127.0.0.1:8050")
+    print("3. The map will update automatically every 5 seconds")
 
     if excel_found:
-        print("4. 📍 המפה תציג נקודות עם מיקום GPS!")
+        print("4. The map will display points with GPS location!")
     else:
-        print("4. ⚠️ המפה תציג נקודות ללא מיקום (0,0)")
-        print("   💡 להוספת מיקום: הכן קובץ frames.xlsx והפעל שוב")
+        print("4. The map will display points without location (0,0)")
+        print("   To add location: prepare a frames.xlsx file and run again")
 
-    # הצגת סטטיסטיקות אחרונות מהשרת
-    print(f"\n📊 סטטיסטיקות אחרונות מהשרת:")
+    # Display latest server statistics
+    print(f"\nLatest server statistics:")
     final_stats = get_server_stats()
 
     if final_stats:
-        print("🎯 כל הנתונים מוכנים למפה הדינמית!")
+        print("All data is ready for the dynamic map!")
     else:
-        print("⚠️ לא ניתן לקבל סטטיסטיקות מהשרת")
+        print("Could not get statistics from the server")
 
-    print(f"\n🏆 עיבוד הושלם בהצלחה!")
+    print(f"\nProcessing completed successfully!")
 
 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n\n👋 תוכנית הופסקה על ידי המשתמש")
+        print("\n\nProgram stopped by user")
     except Exception as e:
-        print(f"\n\n❌ שגיאה כללית: {e}")
+        print(f"\n\nGeneral error: {e}")
         import traceback
 
         traceback.print_exc()
     finally:
-        print("\n🔚 סיום תוכנית")
+        print("\nEnd of program")

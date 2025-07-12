@@ -6,6 +6,11 @@ from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from typing import List, Optional
 import os
 
+# Required imports
+from sqlalchemy import func
+from datetime import timedelta
+import uvicorn
+
 app = FastAPI(title="Drone Video Analysis API", version="1.0.0")
 
 # Database configuration
@@ -19,6 +24,7 @@ Base = declarative_base()
 
 # Database Models
 class VideoEntryDB(Base):
+    """SQLAlchemy model for video entries."""
     __tablename__ = "videos"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -27,12 +33,13 @@ class VideoEntryDB(Base):
     pedestrian_count = Column(Integer, index=True)
     time = Column(String)
     video_path = Column(String)
-    height = Column(Float)  # שונה ל-Float במקום Integer
+    height = Column(Float)
     longitude = Column(Float)
     latitude = Column(Float)
 
 
 class UserDB(Base):
+    """SQLAlchemy model for users."""
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -41,24 +48,25 @@ class UserDB(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
-# Create tables
+# Create database tables
 Base.metadata.create_all(bind=engine)
 
 
 # Pydantic Models (Request/Response schemas)
 class VideoEntry(BaseModel):
+    """Pydantic model for creating a new video entry."""
     frame_number: int
     timestamp: float
     pedestrian_count: int
     time: str
     video_path: str
-    #height: int
     height: float
     longitude: float
     latitude: float
 
 
 class VideoEntryResponse(BaseModel):
+    """Pydantic model for returning video entry data."""
     id: int
     frame_number: int
     timestamp: float
@@ -74,11 +82,13 @@ class VideoEntryResponse(BaseModel):
 
 
 class UserCreate(BaseModel):
+    """Pydantic model for creating a new user."""
     name: str
     email: str
 
 
 class UserResponse(BaseModel):
+    """Pydantic model for returning user data."""
     id: int
     name: str
     email: str
@@ -89,6 +99,7 @@ class UserResponse(BaseModel):
 
 
 class LocationUpdate(BaseModel):
+    """Pydantic model for updating location data of a video entry."""
     frame_number: int
     video_path: str
     height: float
@@ -97,6 +108,7 @@ class LocationUpdate(BaseModel):
 
 
 class VideoStats(BaseModel):
+    """Pydantic model for returning video statistics."""
     total_entries: int
     total_people_detected: int
     unique_videos: int
@@ -107,6 +119,7 @@ class VideoStats(BaseModel):
 
 # Dependency to get database session
 def get_db():
+    """Dependency to provide a database session."""
     db = SessionLocal()
     try:
         yield db
@@ -118,9 +131,9 @@ def get_db():
 @app.post("/insert_video/", response_model=dict)
 def insert_video(entry: VideoEntry, db: Session = Depends(get_db)):
     """
-    הוספת רשומת וידאו חדשה למסד הנתונים
+    Adds a new video entry to the database.
     """
-    print(f"📥 קבלת בקשה להוספת frame {entry.frame_number}")
+    print(f"Request to add frame {entry.frame_number}")
 
     db_entry = VideoEntryDB(
         frame_number=entry.frame_number,
@@ -137,12 +150,12 @@ def insert_video(entry: VideoEntry, db: Session = Depends(get_db)):
         db.add(db_entry)
         db.commit()
         db.refresh(db_entry)
-        print(f"✅ נוסף frame {entry.frame_number} למסד הנתונים (ID: {db_entry.id})")
+        print(f"Added frame {entry.frame_number} to the database (ID: {db_entry.id})")
         return {"status": "success", "id": db_entry.id}
 
     except Exception as e:
         db.rollback()
-        print(f"❌ שגיאה בהוספת frame {entry.frame_number}: {e}")
+        print(f"Error adding frame {entry.frame_number}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to insert video entry: {str(e)}")
 
 
@@ -153,99 +166,99 @@ def get_all_videos(
         db: Session = Depends(get_db)
 ):
     """
-    שליפת כל רשומות הוידאו (עם אפשרות לסינון)
+    Retrieves all video entries (with optional filtering).
     """
     try:
         query = db.query(VideoEntryDB)
 
         if only_with_location:
-            # רק רשומות עם מיקום תקין
+            # Filter for entries with valid location data
             query = query.filter(
                 VideoEntryDB.latitude != 0,
                 VideoEntryDB.longitude != 0
             )
 
-        # מיון לפי זמן (החדשות ביותר קודם)
+        # Order by time (most recent first)
         query = query.order_by(desc(VideoEntryDB.id))
 
-        # הגבלת מספר התוצאות
+        # Limit the number of results
         if limit:
             query = query.limit(limit)
 
         videos = query.all()
-        print(f"📤 החזרת {len(videos)} רשומות וידאו")
+        print(f"Returning {len(videos)} video entries")
         return videos
 
     except Exception as e:
-        print(f"❌ שגיאה בשליפת נתוני וידאו: {e}")
+        print(f"Error fetching video data: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch videos: {str(e)}")
 
 
 @app.get("/get_videos_by_path/{video_path:path}", response_model=List[VideoEntryResponse])
 def get_videos_by_path(video_path: str, db: Session = Depends(get_db)):
     """
-    שליפת רשומות לפי נתיב וידאו ספציפי
+    Retrieves video entries by a specific video path.
     """
     try:
         videos = db.query(VideoEntryDB).filter(
             VideoEntryDB.video_path == video_path
         ).order_by(VideoEntryDB.frame_number).all()
 
-        print(f"📤 החזרת {len(videos)} רשומות עבור וידאו: {video_path}")
+        print(f"Returning {len(videos)} entries for video: {video_path}")
         return videos
 
     except Exception as e:
-        print(f"❌ שגיאה בשליפת נתונים לוידאו {video_path}: {e}")
+        print(f"Error fetching data for video {video_path}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch videos: {str(e)}")
 
 
 @app.get("/get_recent_videos/", response_model=List[VideoEntryResponse])
 def get_recent_videos(minutes: int = 60, db: Session = Depends(get_db)):
     """
-    שליפת רשומות מהשעות האחרונות
+    Retrieves video entries from the last few hours.
     """
     try:
-        # חישוב זמן תחילת הטווח
+        # Calculate the time threshold
         time_threshold = datetime.now() - timedelta(minutes=minutes)
 
         videos = db.query(VideoEntryDB).filter(
             VideoEntryDB.time >= time_threshold.strftime('%Y-%m-%d %H:%M:%S')
         ).order_by(desc(VideoEntryDB.id)).all()
 
-        print(f"📤 החזרת {len(videos)} רשומות מה-{minutes} דקות האחרונות")
+        print(f"Returning {len(videos)} entries from the last {minutes} minutes")
         return videos
 
     except Exception as e:
-        print(f"❌ שגיאה בשליפת רשומות אחרונות: {e}")
+        print(f"Error fetching recent entries: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch recent videos: {str(e)}")
 
 
 @app.get("/get_video_stats/", response_model=VideoStats)
 def get_video_stats(db: Session = Depends(get_db)):
     """
-    קבלת סטטיסטיקות כלליות על הנתונים
+    Retrieves general statistics about the video data.
     """
     try:
-        # סך הכל רשומות
+        # Total number of entries
         total_entries = db.query(VideoEntryDB).count()
 
-        # סך כל האנשים שזוהו
+        # Total number of people detected
         total_people = db.query(func.sum(VideoEntryDB.pedestrian_count)).scalar() or 0
 
-        # מספר וידאוים ייחודיים
+        # Number of unique videos
         unique_videos = db.query(VideoEntryDB.video_path).distinct().count()
 
-        # רשומות עם מיקום
+        # Entries with valid location data
         entries_with_location = db.query(VideoEntryDB).filter(
             VideoEntryDB.latitude != 0,
             VideoEntryDB.longitude != 0
         ).count()
 
-        # רשומה אחרונה
+        # Latest entry time
         latest_entry = db.query(VideoEntryDB).order_by(desc(VideoEntryDB.id)).first()
         latest_time = latest_entry.time if latest_entry else None
 
-        # ממוצע אנשים לפריים
+        # Average people per frame
         avg_people = total_people / total_entries if total_entries > 0 else 0
 
         stats = VideoStats(
@@ -257,22 +270,22 @@ def get_video_stats(db: Session = Depends(get_db)):
             average_people_per_frame=round(avg_people, 2)
         )
 
-        print(f"📊 סטטיסטיקות: {total_entries} רשומות, {total_people} אנשים")
+        print(f"Statistics: {total_entries} entries, {total_people} people")
         return stats
 
     except Exception as e:
-        print(f"❌ שגיאה בחישוב סטטיסטיקות: {e}")
+        print(f"Error calculating statistics: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to calculate stats: {str(e)}")
 
 
 @app.put("/update_location/", response_model=dict)
 def update_video_location(location_data: LocationUpdate, db: Session = Depends(get_db)):
     """
-    עדכון נתוני מיקום בלבד לרשומה קיימת במסד הנתונים
+    Updates only the location data for an existing video entry in the database.
     """
-    print(f"🔄 עדכון מיקום עבור frame {location_data.frame_number}")
+    print(f"Updating location for frame {location_data.frame_number}")
 
-    # חיפוש הרשומה הקיימת
+    # Find the existing entry
     existing_entry = db.query(VideoEntryDB).filter(
         VideoEntryDB.frame_number == location_data.frame_number,
         VideoEntryDB.video_path == location_data.video_path
@@ -284,7 +297,7 @@ def update_video_location(location_data: LocationUpdate, db: Session = Depends(g
             detail=f"Video entry not found for frame {location_data.frame_number} in video {location_data.video_path}"
         )
 
-    # עדכון שדות המיקום
+    # Update location fields
     existing_entry.height = location_data.height
     existing_entry.longitude = location_data.longitude
     existing_entry.latitude = location_data.latitude
@@ -293,7 +306,7 @@ def update_video_location(location_data: LocationUpdate, db: Session = Depends(g
         db.commit()
         db.refresh(existing_entry)
 
-        print(f"✅ עודכן מיקום עבור frame {location_data.frame_number}")
+        print(f"Location updated for frame {location_data.frame_number}")
         return {
             "status": "success",
             "updated_id": existing_entry.id,
@@ -303,14 +316,14 @@ def update_video_location(location_data: LocationUpdate, db: Session = Depends(g
 
     except Exception as e:
         db.rollback()
-        print(f"❌ שגיאת מסד נתונים: {e}")
+        print(f"Database error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to update database: {str(e)}")
 
 
 @app.delete("/delete_video/{video_id}")
 def delete_video(video_id: int, db: Session = Depends(get_db)):
     """
-    מחיקת רשומה ספציפית
+    Deletes a specific video entry.
     """
     try:
         video = db.query(VideoEntryDB).filter(VideoEntryDB.id == video_id).first()
@@ -320,18 +333,21 @@ def delete_video(video_id: int, db: Session = Depends(get_db)):
         db.delete(video)
         db.commit()
 
-        print(f"🗑️ נמחקה רשומה {video_id}")
+        print(f"Deleted entry {video_id}")
         return {"status": "success", "message": f"Video entry {video_id} deleted"}
 
     except Exception as e:
         db.rollback()
-        print(f"❌ שגיאה במחיקת רשומה {video_id}: {e}")
+        print(f"Error deleting entry {video_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to delete video: {str(e)}")
 
 
-# User endpoints (ללא שינוי)
+# User endpoints
 @app.post("/users/", response_model=UserResponse)
 def create_user(user: UserCreate, db: Session = Depends(get_db)):
+    """
+    Creates a new user.
+    """
     db_user = db.query(UserDB).filter(UserDB.email == user.email).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -345,12 +361,18 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
 
 @app.get("/users/", response_model=List[UserResponse])
 def get_all_users(db: Session = Depends(get_db)):
+    """
+    Retrieves all users.
+    """
     users = db.query(UserDB).all()
     return users
 
 
 @app.get("/users/{user_id}", response_model=UserResponse)
 def get_user(user_id: int, db: Session = Depends(get_db)):
+    """
+    Retrieves a specific user by ID.
+    """
     user = db.query(UserDB).filter(UserDB.id == user_id).first()
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
@@ -360,49 +382,42 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
 @app.get("/")
 def root():
     """
-    נקודת קצה ראשית עם מידע על ה-API
+    Main endpoint providing information about the API.
     """
     return {
         "message": "Drone Video Analysis API",
         "version": "1.0.0",
         "endpoints": {
-            "POST /insert_video/": "הוספת רשומת וידאו",
-            "GET /get_all_videos/": "שליפת כל הרשומות",
-            "GET /get_videos_by_path/{path}": "שליפת רשומות לפי וידאו",
-            "GET /get_recent_videos/": "שליפת רשומות אחרונות",
-            "GET /get_video_stats/": "סטטיסטיקות כלליות",
-            "PUT /update_location/": "עדכון מיקום",
-            "DELETE /delete_video/{id}": "מחיקת רשומה"
+            "POST /insert_video/": "Add a video entry",
+            "GET /get_all_videos/": "Retrieve all entries",
+            "GET /get_videos_by_path/{path}": "Retrieve entries by video path",
+            "GET /get_recent_videos/": "Retrieve recent entries",
+            "GET /get_video_stats/": "General statistics",
+            "PUT /update_location/": "Update location data",
+            "DELETE /delete_video/{id}": "Delete a specific entry"
         }
     }
 
 @app.delete("/delete_all_videos/")
 def delete_all_videos(db: Session = Depends(get_db)):
     """
-    מחיקת כל רשומות הוידאו מהמסד
+    Deletes all video entries from the database.
     """
     try:
         deleted = db.query(VideoEntryDB).delete()
         db.commit()
-        print(f"🗑️ נמחקו {deleted} רשומות מהטבלה videos")
+        print(f"Deleted {deleted} entries from the 'videos' table")
         return {"status": "success", "message": f"Deleted {deleted} video entries"}
     except Exception as e:
         db.rollback()
-        print(f"❌ שגיאה במחיקת כל הרשומות: {e}")
+        print(f"Error deleting all entries: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to delete all videos: {str(e)}")
 
 
-# הוספת import שחסר
-from sqlalchemy import func
-from datetime import timedelta
-
 # Main function to run the server
 if __name__ == "__main__":
-    import uvicorn
-
-    print("🚀 מפעיל שרת API...")
-    print("📍 השרת יעבוד על: http://localhost:8080")
-    print("📖 תיעוד האפליקציה: http://localhost:8080/docs")
-
+    print("Starting API server...")
+    print("Server will run on: http://localhost:8080")
+    print("Application documentation: http://localhost:8080/docs")
 
     uvicorn.run("server.api_server:app", host="127.0.0.1", port=8080, reload=True)

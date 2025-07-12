@@ -8,15 +8,15 @@ from datetime import datetime
 API_BASE_URL = "http://localhost:8080"
 app = dash.Dash(__name__)
 
-# שליחת בקשת מחיקה לשרת - כדי שהמפה תתחיל נקייה בכל הרצה
+# Send a delete request to the server - so the map starts clean on each run
 try:
     res = requests.delete(f"{API_BASE_URL}/delete_all_videos/")
     if res.status_code == 200:
-        print("✅ מסד הנתונים אופס בהצלחה")
+        print("Database successfully reset")
     else:
-        print(f"⚠️ שגיאה באיפוס הנתונים: {res.status_code}")
+        print(f"Error resetting data: {res.status_code}")
 except Exception as e:
-    print(f"⚠️ שגיאה בחיבור לשרת: {e}")
+    print(f"Error connecting to server: {e}")
 
 color_map = {
     "3+": "#ff4444",
@@ -26,19 +26,21 @@ color_map = {
 
 
 def get_video_data_from_db():
+    """Retrieves video data from the database."""
     try:
         response = requests.get(f"{API_BASE_URL}/get_all_videos/")
         if response.status_code == 200:
             return response.json()
         else:
-            print(f"שגיאה בשליפת נתונים: {response.status_code}")
+            print(f"Error fetching data: {response.status_code}")
             return []
     except Exception as e:
-        print(f"שגיאת חיבור למסד הנתונים: {e}")
+        print(f"Database connection error: {e}")
         return []
 
 
 def classify_activity_level(people_count):
+    """Classifies the activity level based on the number of people detected."""
     if people_count >= 3:
         return "3+"
     elif people_count == 2:
@@ -50,6 +52,7 @@ def classify_activity_level(people_count):
 
 
 def process_db_data_to_map_points():
+    """Processes database data into a Pandas DataFrame suitable for map plotting."""
     db_data = get_video_data_from_db()
     if not db_data:
         return pd.DataFrame(columns=[
@@ -72,12 +75,12 @@ def process_db_data_to_map_points():
             "lon": float(lon),
             "type": activity_type,
             "level": min(5, max(1, people_count + 1)),
-            "size": 2.0,  # קטן במיוחד
+            "size": 2.0,  # Extra small
             "color": color_map.get(activity_type, "#888888"),
             "people_count": people_count,
-            "time": entry.get('time', 'לא ידוע'),
+            "time": entry.get('time', 'Unknown'),
             "frame_number": entry.get('frame_number', 0),
-            "video_path": entry.get('video_path', 'לא ידוע')
+            "video_path": entry.get('video_path', 'Unknown')
         }
         points_data.append(point)
 
@@ -85,6 +88,7 @@ def process_db_data_to_map_points():
 
 
 def create_map_figure(points_df, zoom=19):
+    """Creates a Plotly Mapbox figure based on the processed data."""
     if points_df.empty:
         fig = px.scatter_mapbox(
             lat=[31.7855], lon=[35.19],
@@ -92,7 +96,7 @@ def create_map_figure(points_df, zoom=19):
             mapbox_style="carto-positron"
         )
         fig.add_annotation(
-            text="אין נתונים זמינים כרגע",
+            text="No data available currently",
             xref="paper", yref="paper",
             x=0.5, y=0.5, showarrow=False,
             font=dict(size=20, color="red")
@@ -117,13 +121,13 @@ def create_map_figure(points_df, zoom=19):
         height=700,
         mapbox_style="carto-positron",
         color_discrete_map=color_map,
-        title="מפת זיהוי הולכי רגל בזמן אמת"
+        title="Real-time Pedestrian Detection Map"
     )
     fig.update_traces(marker=dict(size=4))
 
     fig.update_layout(
         title={
-            'text': "מפת זיהוי הולכי רגל בזמן אמת",
+            'text': "Real-time Pedestrian Detection Map",
             'x': 0.5,
             'xanchor': 'center',
             'font': {'size': 24}
@@ -141,7 +145,7 @@ def create_map_figure(points_df, zoom=19):
 
 app.layout = html.Div([
     html.Div([
-        html.H1("מערכת מעקב הולכי רגל",
+        html.H1("Pedestrian Tracking System",
                 style={'textAlign': 'center', 'color': '#2c3e50',
                        'marginBottom': '20px', 'fontFamily': 'Arial'}),
 
@@ -154,7 +158,7 @@ app.layout = html.Div([
             ]),
 
             html.Div([
-                html.Label("רמת תקריב (Zoom Level):"),
+                html.Label("Zoom Level:"),
                 dcc.Slider(id='zoom-slider', min=10, max=20, step=1, value=19,
                            marks={i: str(i) for i in range(10, 21)}, tooltip={"placement": "bottom"})
             ], style={'marginTop': '20px', 'padding': '10px 40px'})
@@ -172,14 +176,15 @@ app.layout = html.Div([
     [State('zoom-slider', 'value')]
 )
 def update_map_live(n, zoom):
+    """Callback to update the map and last update time live."""
     points_df = process_db_data_to_map_points()
     fig = create_map_figure(points_df, zoom)
-    last_update_text = f"עדכון אחרון: {datetime.now().strftime('%H:%M:%S')}"
+    last_update_text = f"Last Update: {datetime.now().strftime('%H:%M:%S')}"
     return fig, last_update_text
 
 
 if __name__ == '__main__':
-    print("🚀 מפעיל מפה דינמית...")
-    print("📍 המפה תתעדכן כל 2 שניות")
-    print("🌐 גש לכתובת: http://127.0.0.1:8050")
+    print("Starting dynamic map...")
+    print("Map will update every 2 seconds")
+    print("Access at: http://127.0.0.1:8050")
     app.run(debug=True, host='127.0.0.1', port=8050)
